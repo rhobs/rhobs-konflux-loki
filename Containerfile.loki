@@ -1,0 +1,27 @@
+FROM quay.io/redhat-services-prod/openshift/boilerplate:image-v8.0.0 as builder
+
+WORKDIR /go/src/github.com/grafana/loki
+COPY loki/ .
+
+RUN touch loki-build-image/.uptodate && mkdir /build
+RUN make clean && make BUILD_IN_CONTAINER=false loki
+
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
+
+ARG VERSION
+
+LABEL org.label-schema.vendor="Red Hat" \
+  vendor="Red Hat, Inc." \
+  com.redhat.component="rhobs-loki" \
+  name="loki" \
+  maintainer="team-monitoring@redhat.com" \
+  version="$VERSION" \
+  release="$VERSION" \
+  description="Loki is a horizontally-scalable, highly-available, multi-tenant log aggregation system inspired by Prometheus. It is designed to be very cost effective and easy to operate." \
+  summary="Log aggregation system"
+
+COPY --from=builder /go/src/github.com/grafana/loki/cmd/loki/loki /usr/bin/loki
+COPY --from=builder /go/src/github.com/grafana/loki/cmd/loki/loki-docker-config.yaml /etc/loki/local-config.yaml
+
+ENTRYPOINT ["/usr/bin/loki"]
+CMD ["-config.file=/etc/loki/local-config.yaml"]
